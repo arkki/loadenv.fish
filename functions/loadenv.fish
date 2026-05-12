@@ -1,9 +1,10 @@
+# Defined in /Users/olli.niinioja/.config/fish/functions/loadenv.fish @ line 1
 function loadenv
     builtin argparse h/help print printb U/unload -- $argv
     or return 1
 
     if set -q _flag_help
-        echo "Usage: loadenv [OPTIONS] [FILE]"
+        echo "Usage: loadenv [OPTIONS] [FILE] [-- COMMAND [ARGS...]]"
         echo ""
         echo "Export keys and values from a dotenv file."
         echo ""
@@ -15,17 +16,22 @@ function loadenv
         echo ""
         echo "Arguments:"
         echo "  FILE            Path to dotenv file (default: .env)"
+        echo "  COMMAND         Run command with dotenv vars scoped to that process"
         return 0
     end
 
-    if test (builtin count $argv) -gt 1
-        echo "Too many arguments. Only one argument is allowed. Use --help for more information."
+    if test (builtin count $argv) -gt 1; and begin; set -q _flag_print; or set -q _flag_printb; or set -q _flag_unload; end
+        echo "Too many arguments. Command mode cannot be combined with --print, --printb, or --unload. Use --help for more information."
         return 1
     end
 
     set -l dotenv_file ".env"
-    if test (builtin count $argv) -eq 1
+    set -l command_args
+    if test (builtin count $argv) -ge 1
         set dotenv_file $argv[1]
+    end
+    if test (builtin count $argv) -gt 1
+        set command_args $argv[2..-1]
     end
 
     if not test -f $dotenv_file
@@ -40,7 +46,11 @@ function loadenv
         set mode printb
     else if set -q _flag_unload
         set mode unload
+    else if test (builtin count $command_args) -gt 0
+        set mode command
     end
+
+    set -l env_args
 
     set -l all_lines (command cat $dotenv_file)
     set -l totalLines (builtin count $all_lines)
@@ -140,7 +150,13 @@ function loadenv
                 set -gx $key $value
             case unload
                 set -e $key
+            case command
+                set -a env_args "$key=$value"
         end
+    end
+
+    if test "$mode" = command
+        env $env_args $command_args
     end
 
 end
